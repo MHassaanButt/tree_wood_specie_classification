@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Tree Ring Detection App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .dropzone {
@@ -101,6 +99,15 @@
         }
         .developer-links a:hover {
             transform: translateY(-2px);
+        }
+        .download-options {
+            display: none;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -237,6 +244,15 @@
                         <button id="downloadBtn" class="w-full py-2 px-4 border border-indigo-600 text-indigo-600 font-medium rounded-md hover:bg-indigo-50 transition-colors flex items-center justify-center">
                             <i class="fas fa-download mr-2"></i> Download Results
                         </button>
+                        
+                        <div id="downloadOptions" class="download-options mt-3">
+                            <h4 class="font-medium text-gray-700 mb-2">Choose Download Format:</h4>
+                            <div class="flex flex-wrap gap-2">
+                                <button id="downloadTxt" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">TXT</button>
+                                <button id="downloadCsv" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">CSV</button>
+                                <button id="downloadJson" class="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">JSON</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -281,6 +297,10 @@
             const density = document.getElementById('density');
             const ringOverlay = document.getElementById('ringOverlay');
             const downloadBtn = document.getElementById('downloadBtn');
+            const downloadOptions = document.getElementById('downloadOptions');
+            const downloadTxt = document.getElementById('downloadTxt');
+            const downloadCsv = document.getElementById('downloadCsv');
+            const downloadJson = document.getElementById('downloadJson');
             const sensitivity = document.getElementById('sensitivity');
             const ringType = document.getElementById('ringType');
             const ringMeasurements = document.getElementById('ringMeasurements');
@@ -291,6 +311,7 @@
                 trueRings: [],
                 falseRings: []
             };
+            let fileNameWithoutExt = 'tree-ring-report';
 
             // Event Listeners
             uploadBtn.addEventListener('click', () => fileInput.click());
@@ -320,7 +341,10 @@
             });
 
             detectBtn.addEventListener('click', detectRings);
-            downloadBtn.addEventListener('click', downloadResults);
+            downloadBtn.addEventListener('click', toggleDownloadOptions);
+            downloadTxt.addEventListener('click', () => downloadResults('txt'));
+            downloadCsv.addEventListener('click', () => downloadResults('csv'));
+            downloadJson.addEventListener('click', () => downloadResults('json'));
 
             // Functions
             function handleFileUpload(file) {
@@ -330,6 +354,11 @@
                 }
 
                 uploadedFile = file;
+                
+                // Get file name without extension
+                const fileName = file.name;
+                const lastDotIndex = fileName.lastIndexOf('.');
+                fileNameWithoutExt = lastDotIndex === -1 ? fileName : fileName.substring(0, lastDotIndex);
                 
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -680,112 +709,150 @@
                 }
             }
 
-            async function downloadResults() {
+            function toggleDownloadOptions() {
+                if (downloadOptions.style.display === 'block') {
+                    downloadOptions.style.display = 'none';
+                } else {
+                    downloadOptions.style.display = 'block';
+                }
+            }
+
+            function downloadResults(format) {
+                // Hide download options
+                downloadOptions.style.display = 'none';
+                
                 // Show loading state
-                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Generating PDF...';
+                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Generating ' + format.toUpperCase() + '...';
                 downloadBtn.disabled = true;
                 
                 try {
-                    // Use jsPDF to create PDF
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF('p', 'mm', 'a4');
+                    let content = '';
+                    let fileName = fileNameWithoutExt + '_report.' + format;
                     
-                    // Add title
-                    doc.setFontSize(22);
-                    doc.setTextColor(79, 70, 229); // indigo-700
-                    doc.text('Tree Ring Detection Report', 105, 20, null, null, 'center');
-                    
-                    doc.setFontSize(12);
-                    doc.setTextColor(0, 0, 0);
-                    doc.text('Generated on: ' + new Date().toLocaleDateString(), 105, 30, null, null, 'center');
-                    
-                    // Add summary section
-                    doc.setFontSize(16);
-                    doc.setTextColor(0, 0, 0);
-                    doc.text('Detection Summary', 20, 45);
-                    
-                    doc.setFontSize(12);
-                    doc.text(`True Rings: ${detectionResults.trueRings.length}`, 20, 55);
-                    doc.text(`False Rings: ${detectionResults.falseRings.length}`, 20, 62);
-                    
-                    // Add metrics
-                    const totalRings = detectionResults.trueRings.length + detectionResults.falseRings.length;
-                    if (totalRings > 0) {
-                        const totalWidth = [...detectionResults.trueRings, ...detectionResults.falseRings].reduce((sum, ring) => sum + ring.width, 0);
-                        const avgRingWidth = totalWidth / totalRings;
-                        const imageAreaMM = 100;
-                        const ringDensity = totalRings / imageAreaMM;
-                        
-                        doc.text(`Average Ring Width: ${avgRingWidth.toFixed(1)} pixels`, 20, 69);
-                        doc.text(`Ring Density: ${ringDensity.toFixed(2)} rings/mm²`, 20, 76);
+                    if (format === 'txt') {
+                        content = generateTextReport();
+                    } else if (format === 'csv') {
+                        content = generateCsvReport();
+                    } else if (format === 'json') {
+                        content = generateJsonReport();
                     }
                     
-                    // Add individual measurements table
-                    doc.setFontSize(16);
-                    doc.text('Individual Ring Measurements', 20, 90);
+                    // Create and download file
+                    const blob = new Blob([content], { type: 'text/' + format });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
                     
-                    // Create table data
-                    const tableData = [];
-                    detectionResults.trueRings.forEach((ring, i) => {
-                        tableData.push([`True Ring ${i+1}`, `${ring.width.toFixed(1)} pixels`, `${(parseFloat(ring.confidence) * 100).toFixed(0)}%`]);
-                    });
-                    detectionResults.falseRings.forEach((ring, i) => {
-                        tableData.push([`False Ring ${detectionResults.trueRings.length + i + 1}`, `${ring.width.toFixed(1)} pixels`, `${(parseFloat(ring.confidence) * 100).toFixed(0)}%`]);
-                    });
-                    
-                    // Add table to PDF
-                    doc.autoTable({
-                        head: [['Ring', 'Width (pixels)', 'Confidence']],
-                        body: tableData,
-                        startY: 95,
-                        margin: { left: 20, right: 20 },
-                        styles: { fontSize: 10 },
-                        headStyles: { fillColor: [79, 70, 229] } // indigo-700
-                    });
-                    
-                    // Capture image with annotations
-                    const canvas = await html2canvas(document.getElementById('imageContainer'));
-                    const imgData = canvas.toDataURL('image/png');
-                    
-                    // Add image to PDF (position below the table)
-                    const imgWidth = 170;
-                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                    let finalY = doc.lastAutoTable.finalY + 10;
-                    
-                    // Check if image fits on current page
-                    if (finalY + imgHeight > 280) {
-                        doc.addPage();
-                        finalY = 20;
-                    }
-                    
-                    doc.addImage(imgData, 'PNG', 20, finalY, imgWidth, imgHeight);
-                    
-                    // Add AI explanation
-                    doc.addPage();
-                    doc.setFontSize(16);
-                    doc.text('AI Analysis Explanation', 20, 20);
-                    
-                    doc.setFontSize(12);
-                    const explanationText = document.getElementById('aiExplanation').innerText;
-                    const splitText = doc.splitTextToSize(explanationText, 170);
-                    doc.text(splitText, 20, 30);
-                    
-                    // Add developer info
-                    doc.setFontSize(10);
-                    doc.setTextColor(100, 100, 100);
-                    doc.text('Developed by Muhammad Hassaan Farooq Butt', 20, 280);
-                    doc.text('GitHub: github.com/MHassaanButt | LinkedIn: linkedin.com/in/mhassaanbutt', 20, 285);
-                    
-                    // Save the PDF
-                    doc.save('tree-ring-detection-report.pdf');
                 } catch (error) {
-                    console.error('Error generating PDF:', error);
-                    alert('Error generating PDF. Please try again.');
+                    console.error('Error generating report:', error);
+                    alert('Error generating report. Please try again.');
                 } finally {
                     // Reset button
                     downloadBtn.innerHTML = '<i class="fas fa-download mr-2"></i> Download Results';
                     downloadBtn.disabled = false;
                 }
+            }
+
+            function generateTextReport() {
+                let report = "Tree Ring Detection Report\n";
+                report += "==========================\n\n";
+                
+                report += "Generated on: " + new Date().toLocaleString() + "\n\n";
+                
+                report += "DETECTION SUMMARY\n";
+                report += "-----------------\n";
+                report += `True Rings: ${detectionResults.trueRings.length}\n`;
+                report += `False Rings: ${detectionResults.falseRings.length}\n\n`;
+                
+                report += "RING METRICS\n";
+                report += "------------\n";
+                const totalRings = detectionResults.trueRings.length + detectionResults.falseRings.length;
+                if (totalRings > 0) {
+                    const totalWidth = [...detectionResults.trueRings, ...detectionResults.falseRings].reduce((sum, ring) => sum + ring.width, 0);
+                    const avgRingWidth = totalWidth / totalRings;
+                    const imageAreaMM = 100;
+                    const ringDensity = totalRings / imageAreaMM;
+                    
+                    report += `Average Ring Width: ${avgRingWidth.toFixed(1)} pixels\n`;
+                    report += `Ring Density: ${ringDensity.toFixed(2)} rings/mm²\n\n`;
+                }
+                
+                report += "INDIVIDUAL RING MEASUREMENTS\n";
+                report += "----------------------------\n";
+                
+                detectionResults.trueRings.forEach((ring, i) => {
+                    report += `True Ring ${i+1}: ${ring.width.toFixed(1)} pixels (Confidence: ${(parseFloat(ring.confidence) * 100).toFixed(0)}%)\n`;
+                });
+                
+                detectionResults.falseRings.forEach((ring, i) => {
+                    report += `False Ring ${detectionResults.trueRings.length + i + 1}: ${ring.width.toFixed(1)} pixels (Confidence: ${(parseFloat(ring.confidence) * 100).toFixed(0)}%)\n`;
+                });
+                
+                report += "\nAI ANALYSIS EXPLANATION\n";
+                report += "-----------------------\n";
+                report += document.getElementById('aiExplanation').innerText;
+                
+                report += "\n\nDeveloper Information:\n";
+                report += "Developed by Muhammad Hassaan Farooq Butt\n";
+                report += "GitHub: github.com/MHassaanButt\n";
+                report += "LinkedIn: linkedin.com/in/mhassaanbutt\n";
+                
+                return report;
+            }
+
+            function generateCsvReport() {
+                let csv = "Ring Type,Ring Number,Width (pixels),Confidence\n";
+                
+                detectionResults.trueRings.forEach((ring, i) => {
+                    csv += `True,${i+1},${ring.width.toFixed(1)},${(parseFloat(ring.confidence) * 100).toFixed(0)}%\n`;
+                });
+                
+                detectionResults.falseRings.forEach((ring, i) => {
+                    csv += `False,${detectionResults.trueRings.length + i + 1},${ring.width.toFixed(1)},${(parseFloat(ring.confidence) * 100).toFixed(0)}%\n`;
+                });
+                
+                return csv;
+            }
+
+            function generateJsonReport() {
+                const reportData = {
+                    generatedOn: new Date().toISOString(),
+                    summary: {
+                        trueRings: detectionResults.trueRings.length,
+                        falseRings: detectionResults.falseRings.length
+                    },
+                    metrics: {},
+                    rings: {
+                        trueRings: detectionResults.trueRings,
+                        falseRings: detectionResults.falseRings
+                    },
+                    aiExplanation: document.getElementById('aiExplanation').innerText,
+                    developerInfo: {
+                        name: "Muhammad Hassaan Farooq Butt",
+                        github: "github.com/MHassaanButt",
+                        linkedin: "linkedin.com/in/mhassaanbutt"
+                    }
+                };
+                
+                const totalRings = detectionResults.trueRings.length + detectionResults.falseRings.length;
+                if (totalRings > 0) {
+                    const totalWidth = [...detectionResults.trueRings, ...detectionResults.falseRings].reduce((sum, ring) => sum + ring.width, 0);
+                    const avgRingWidth = totalWidth / totalRings;
+                    const imageAreaMM = 100;
+                    const ringDensity = totalRings / imageAreaMM;
+                    
+                    reportData.metrics = {
+                        averageRingWidth: avgRingWidth.toFixed(1) + " pixels",
+                        ringDensity: ringDensity.toFixed(2) + " rings/mm²"
+                    };
+                }
+                
+                return JSON.stringify(reportData, null, 2);
             }
 
             // Listen for settings changes
