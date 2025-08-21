@@ -1,3 +1,4 @@
 hsi/
+logs/
 prepocessing/processed_cubes/
 *.joblib
