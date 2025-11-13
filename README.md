@@ -36,8 +36,7 @@ Our preprocessing workflow includes:
 
 HyFormer consists of:
 
-<img width="975" height="437" alt="image" src="https://github.com/user-attachments/assets/d678c902-0f83-41f4-b936-6938ce839add" />
-
+<img width="599" height="280" alt="Picture1" src="https://github.com/user-attachments/assets/d2dacc90-9f1e-4316-ba51-0288be4bc8d9" />
 
 ---
 
